@@ -1,0 +1,21 @@
+# Build output
+bin/
+dist/
+autodeploy
+autodeploy.exe
+
+# Runtime data (database, encryption key)
+data/
+*.db
+*.db-shm
+*.db-wal
+secret.key
+
+# Local configuration may contain passwords
+config.yaml
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

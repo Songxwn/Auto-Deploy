@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-Deploy · 自动化部署平台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="logo">🚀 Auto-Deploy<span>自动化部署平台</span></div>
+    <nav>
+      <a href="#/hosts" data-nav="hosts">🖥️ 主机管理</a>
+      <a href="#/tasks" data-nav="tasks">📦 部署任务</a>
+      <a href="#/runs" data-nav="runs">📜 执行记录</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span id="version"></span>
+      <button class="link" data-action="logout">退出登录</button>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div id="login-overlay" class="overlay hidden">
+  <form id="login-form" class="login-card">
+    <h1>🚀 Auto-Deploy</h1>
+    <p class="muted">SSH 自动化部署平台，请登录</p>
+    <label>用户名<input name="username" value="admin" autocomplete="username" required></label>
+    <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit" class="btn primary block">登 录</button>
+    <div id="login-error" class="error"></div>
+  </form>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+.git
+.github
+bin
+dist
+data
+*.db
+*.db-shm
+*.db-wal
+config.yaml
+secret.key
+docker-compose.yml
+Makefile
+LICENSE

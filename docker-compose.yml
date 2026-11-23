@@ -1,0 +1,15 @@
+services:
+  auto-deploy:
+    image: ghcr.io/songxwn/auto-deploy:latest
+    container_name: auto-deploy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - auto-deploy-data:/data
+    environment:
+      # 首次启动前请设置管理员密码（默认 admin / admin123）
+      AUTO_DEPLOY_PASSWORD: ${AUTO_DEPLOY_PASSWORD:-}
+
+volumes:
+  auto-deploy-data:

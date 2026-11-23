@@ -1,0 +1,31 @@
+# Auto-Deploy 配置文件
+# 所有配置项均可用环境变量覆盖（AUTO_DEPLOY_LISTEN、AUTO_DEPLOY_PASSWORD 等）。
+# 本文件不存在时程序使用默认值启动。
+
+# HTTP 监听地址
+listen: ":8080"
+
+# 数据目录（SQLite 数据库与自动生成的加密密钥）
+data_dir: "./data"
+
+# Web 登录账号
+username: admin
+# 请务必修改默认密码！留空时使用 admin123（不推荐）
+password: "change-me-please"
+
+# 凭据加密密钥。留空时自动在 data_dir/secret.key 生成随机密钥。
+# 注意：更换密钥后已保存的主机凭据将无法解密。
+secret: ""
+
+# 可选：known_hosts 文件路径，启用 SSH 主机密钥校验。
+# 留空时跳过主机密钥校验（内网环境可接受，公网建议启用）。
+known_hosts: ""
+
+# 单次执行中并行操作的主机数量上限
+concurrency: 8
+
+# SSH 连接超时（秒）
+ssh_timeout: 15
+
+# 单次执行总超时（秒），0 表示不限制
+run_timeout: 3600

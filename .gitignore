@@ -1,8 +1,8 @@
 # Build output
 bin/
 dist/
-autodeploy
-autodeploy.exe
+/autodeploy
+/autodeploy.exe
 
 # Runtime data (database, encryption key)
 data/

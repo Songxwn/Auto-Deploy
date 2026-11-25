@@ -55,6 +55,13 @@ func (s *Server) Handler() http.Handler {
 	authed.HandleFunc("GET /api/runs/{id}", s.getRun)
 	authed.HandleFunc("POST /api/runs/{id}/cancel", s.cancelRun)
 	authed.HandleFunc("GET /api/runs/{id}/logs", s.runLogs)
+
+	authed.HandleFunc("GET /api/templates", s.listTemplates)
+	authed.HandleFunc("POST /api/templates", s.createTemplate)
+	authed.HandleFunc("GET /api/templates/{id}", s.getTemplate)
+	authed.HandleFunc("PUT /api/templates/{id}", s.updateTemplate)
+	authed.HandleFunc("DELETE /api/templates/{id}", s.deleteTemplate)
+
 	authed.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "接口不存在")
 	})

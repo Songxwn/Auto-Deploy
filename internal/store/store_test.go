@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Songxwn/Auto-Deploy/internal/models"
+	"github.com/Songxwn/Auto-Deploy/internal/templates"
 )
 
 func openTest(t *testing.T) *Store {
@@ -134,5 +135,51 @@ func TestRunAndLogs(t *testing.T) {
 	runs, err := s.ListRuns(10)
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("list runs: %v %+v", err, runs)
+	}
+}
+
+func TestTemplateCRUDAndSeed(t *testing.T) {
+	s := openTest(t)
+	builtIns := templates.BuiltIn()
+	if err := s.SeedTemplates(builtIns); err != nil {
+		t.Fatal(err)
+	}
+	// Seeding is idempotent.
+	if err := s.SeedTemplates(builtIns); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.ListTemplates()
+	if err != nil || len(list) != len(builtIns) {
+		t.Fatalf("seed list: %v len=%d want=%d", err, len(list), len(builtIns))
+	}
+
+	now := time.Now()
+	tpl := models.Template{
+		ID: NewID(), Name: "my-tpl", Description: "desc", OSType: models.OSLinux,
+		Category: models.CatCustom, Script: "echo hi", CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.CreateTemplate(&tpl); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetTemplate(tpl.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "my-tpl" || got.BuiltIn || got.Script != "echo hi" {
+		t.Fatalf("unexpected template: %+v", got)
+	}
+	got.Name = "renamed"
+	got.UpdatedAt = time.Now()
+	if err := s.UpdateTemplate(&got); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTemplate(tpl.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetTemplate(tpl.ID); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+	if err := s.DeleteTemplate(tpl.ID); err != ErrNotFound {
+		t.Fatalf("delete missing: want ErrNotFound, got %v", err)
 	}
 }

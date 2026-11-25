@@ -14,6 +14,7 @@ import (
 	"github.com/Songxwn/Auto-Deploy/internal/engine"
 	"github.com/Songxwn/Auto-Deploy/internal/secure"
 	"github.com/Songxwn/Auto-Deploy/internal/store"
+	"github.com/Songxwn/Auto-Deploy/internal/templates"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -23,6 +24,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
+	if err := st.SeedTemplates(templates.BuiltIn()); err != nil {
+		t.Fatal(err)
+	}
 	cfg := config.Default()
 	cfg.Secret = "test-secret"
 	cfg.Username = "admin"

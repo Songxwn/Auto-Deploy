@@ -6,6 +6,7 @@
 - **单二进制交付**：前端内嵌、SQLite 存储（纯 Go 驱动，无 CGO），下载即用
 - **双平台目标**：Linux 走 `bash -s`，Windows 走 OpenSSH + PowerShell（`-EncodedCommand`，无引号转义问题）
 - **多步骤任务**：按顺序执行步骤，任一步骤失败立即中止该主机；多主机并行、可取消
+- **模板库复用**：内置 16 个常用部署模板（Nginx / Docker / MySQL / IIS 等），支持自定义模板；模板可一键生成任务、插入为步骤，步骤也可沉淀为模板
 - **实时日志**：SSE 推送 stdout / stderr / 系统事件，支持日志回放与导出
 - **凭据安全**：密码 / 私钥使用 AES-256-GCM 加密落库，API 永不回显
 - **CI/CD**：GitHub Actions 自动构建 6 平台二进制并发布到 Releases，多架构镜像推送到 GHCR
@@ -82,7 +83,7 @@ Auto-Deploy 通过 `powershell -EncodedCommand` 执行脚本，**无需**修改 
 ## 使用流程
 
 1. **主机管理**：添加目标主机（地址 / 端口 / 用户 / 密码或私钥 / 系统类型），点击「测试」验证连通性
-2. **部署任务**：创建任务，选择目标系统，编排多个脚本步骤（支持排序）
+2. **部署任务**：创建任务，选择目标系统，编排多个脚本步骤（支持排序）；可从模板库插入步骤
 3. **执行**：点击「▶ 执行」，勾选目标主机（自动按系统过滤），多主机并行执行
 4. **执行记录**：实时查看每台主机的日志与状态，可取消执行、下载完整日志
 
@@ -101,6 +102,19 @@ Auto-Deploy 通过 `powershell -EncodedCommand` 执行脚本，**无需**修改 
 | 安装 | `Install-WindowsFeature -Name Web-Server -IncludeManagementTools` |
 | 站点 | `New-Website -Name app -Port 80 -PhysicalPath C:\inetpub\app -Force` |
 | 防火墙 | `New-NetFirewallRule -DisplayName 'HTTP' -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow` |
+
+## 模板库
+
+「📚 模板库」沉淀可复用的部署脚本，形成「编写 → 沉淀 → 复用」闭环：
+
+- **内置模板**：16 个开箱即用的常用脚本（Linux 10 个 + Windows 6 个），覆盖 Web 服务 / 数据库 / 运行环境 / 系统配置 / 网络与安全，按分类与系统筛选；内置模板只读，可「复制为自定义」后修改
+- **自定义模板**：新建 / 编辑 / 删除自己的模板；在任务编辑器中点击步骤上的 📚 可把当前步骤「存为模板」
+- **复用方式**：
+  - 模板卡片「生成任务」→ 以该模板为唯一步骤创建新任务
+  - 任务编辑器「📚 从模板添加」→ 按任务系统过滤，选择模板插入为新步骤
+  - 「查看」弹窗可预览脚本并一键复制
+
+内置模板在每次启动时幂等注入（稳定 ID），升级不会覆盖用户自定义模板。
 
 ## 配置
 
@@ -136,6 +150,8 @@ Auto-Deploy 通过 `powershell -EncodedCommand` 执行脚本，**无需**修改 
 | GET | `/api/runs/{id}` | 执行详情 |
 | POST | `/api/runs/{id}/cancel` | 取消执行 |
 | GET | `/api/runs/{id}/logs` | SSE 实时日志（`?format=text` 导出文本） |
+| GET | `/api/templates` / POST | 模板列表（含内置）/ 新增自定义模板 |
+| GET/PUT/DELETE | `/api/templates/{id}` | 模板详情 / 更新 / 删除（内置模板只读，返回 409） |
 
 ## 安全说明
 
@@ -168,6 +184,7 @@ internal/secure/       AES-GCM 凭据加密
 internal/store/        SQLite 存储
 internal/sshx/         SSH 执行器（bash / PowerShell）
 internal/engine/       执行调度、日志广播
+internal/templates/    内置部署模板库
 internal/api/          REST API + SSE + 鉴权
 web/                   内嵌前端（零依赖 SPA）
 ```

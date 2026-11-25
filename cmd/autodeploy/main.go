@@ -18,6 +18,7 @@ import (
 	"github.com/Songxwn/Auto-Deploy/internal/engine"
 	"github.com/Songxwn/Auto-Deploy/internal/secure"
 	"github.com/Songxwn/Auto-Deploy/internal/store"
+	"github.com/Songxwn/Auto-Deploy/internal/templates"
 )
 
 var version = "dev"
@@ -42,6 +43,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer st.Close()
+	if err := st.SeedTemplates(templates.BuiltIn()); err != nil {
+		slog.Error("初始化内置模板失败", "err", err)
+		os.Exit(1)
+	}
 
 	box := secure.NewBox(cfg.Secret)
 	eng := engine.New(st, box, engine.SSHExecutor{

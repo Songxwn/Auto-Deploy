@@ -51,6 +51,29 @@ type Step struct {
 	Script string `json:"script"`
 }
 
+// Template categories used to group the template library.
+const (
+	CatWeb      = "web"
+	CatDatabase = "database"
+	CatRuntime  = "runtime"
+	CatSystem   = "system"
+	CatNetwork  = "network"
+	CatCustom   = "custom"
+)
+
+// Template is a reusable deployment script that can be inserted into tasks.
+type Template struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	OSType      string    `json:"os_type"`
+	Category    string    `json:"category"`
+	Script      string    `json:"script"`
+	BuiltIn     bool      `json:"built_in"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // Task is an ordered deployment plan executed over SSH.
 type Task struct {
 	ID          string    `json:"id"`

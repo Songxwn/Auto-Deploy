@@ -208,6 +208,38 @@ textarea.mono, input.mono { font-family: var(--mono); font-size: 13px; }
 .toast.err { border-left-color: var(--red); }
 @keyframes slidein { from { transform: translateX(30px); opacity: 0; } }
 
+/* ---------- templates ---------- */
+.tpl-tip { margin: -6px 0 14px; }
+.tpl-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+  padding: 4px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.tpl-card { display: flex; flex-direction: column; gap: 8px; }
+.tpl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tpl-name { font-weight: 600; }
+.tpl-desc { margin: 0; font-size: 13px; color: var(--muted); flex: 1; }
+.tpl-ops { display: flex; gap: 8px; flex-wrap: wrap; }
+.b-os-linux { background: rgba(46, 204, 113, .14); color: var(--green); }
+.b-os-win { background: rgba(79, 140, 255, .18); color: #7fb0ff; }
+.tpl-script {
+  background: #0d1320; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; font-size: 12px; max-height: 360px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all; margin: 10px 0 0;
+}
+.tpl-picker { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow: auto; margin-top: 10px; }
+.pick-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+}
+.pick-row:hover { border-color: var(--accent); }
+.pick-info { min-width: 0; }
+.pick-info > div:first-child { font-weight: 600; font-size: 13px; }
+
 @media (max-width: 900px) {
   #app { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: static; flex-direction: row; align-items: center; gap: 14px; }
@@ -216,6 +248,7 @@ textarea.mono, input.mono { font-family: var(--mono); font-size: 13px; }
   .sidebar nav { flex-direction: row; }
   .sidebar-foot { display: none; }
   .tasks-layout { grid-template-columns: 1fr; }
+  .tpl-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid .span2 { grid-column: span 1; }
 }

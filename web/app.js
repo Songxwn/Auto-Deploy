@@ -10,12 +10,14 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({
 }[c]));
 
 const state = {
-  hosts: [], tasks: [], runs: [],
+  hosts: [], tasks: [], runs: [], templates: [],
+  tplCat: 'all', tplOS: 'all',
   runDetail: null, runLogs: {}, runLastSeq: {}, selHost: null,
   es: null, poll: null, runFinished: false,
 };
 
 const STATUS_TEXT = { pending: '等待', running: '执行中', success: '成功', failed: '失败', canceled: '已取消' };
+const CAT_TEXT = { web: 'Web 服务', database: '数据库', runtime: '运行环境', system: '系统配置', network: '网络与安全', custom: '自定义' };
 const badge = st => `<span class="badge b-${esc(st)}">${esc(STATUS_TEXT[st] || st)}</span>`;
 const isTerminal = st => st === 'success' || st === 'failed' || st === 'canceled';
 const fmtTime = s => s ? new Date(s).toLocaleString('zh-CN', { hour12: false }) : '—';
@@ -82,6 +84,7 @@ function route() {
   const runMatch = hash.match(/^#\/runs\/([0-9a-f]+)/);
   if (runMatch) return renderRunDetail(runMatch[1]);
   if (hash.startsWith('#/tasks')) return renderTasks(hash.split('/')[2] || '');
+  if (hash.startsWith('#/templates')) return renderTemplates();
   if (hash.startsWith('#/runs')) return renderRuns();
   return renderHosts();
 }
@@ -231,6 +234,7 @@ function stepHTML(s, i) {
       <input name="step-name" value="${esc(s.name)}" placeholder="步骤名称（可选）">
       <button type="button" class="icon-btn" data-action="step-up" title="上移">↑</button>
       <button type="button" class="icon-btn" data-action="step-down" title="下移">↓</button>
+      <button type="button" class="icon-btn" data-action="step-save-tpl" title="存为模板">📚</button>
       <button type="button" class="icon-btn danger" data-action="step-del" title="删除步骤">✕</button>
     </div>
     <textarea name="step-script" class="mono" rows="7" placeholder="bash 或 PowerShell 脚本">${esc(s.script)}</textarea>
@@ -253,7 +257,10 @@ function drawTaskEditor(task) {
     </div>
     <div class="steps-head">
       <h3>执行步骤（按顺序执行，任一步骤失败即中止该主机）</h3>
-      <button type="button" class="btn sm" data-action="step-add">＋ 添加步骤</button>
+      <div class="head-actions">
+        <button type="button" class="btn sm" data-action="tpl-pick">📚 从模板添加</button>
+        <button type="button" class="btn sm" data-action="step-add">＋ 添加步骤</button>
+      </div>
     </div>
     <div id="steps">${t.steps.map((s, i) => stepHTML(s, i)).join('')}</div>
     <div class="editor-foot">
@@ -316,6 +323,153 @@ async function confirmRun(taskId) {
     closeModal();
     location.hash = '#/runs/' + run.id;
   } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ---------------- templates ---------------- */
+
+async function renderTemplates() {
+  main.innerHTML = `
+    <div class="page-head"><h2>模板库</h2>
+      <button class="btn primary" data-action="tpl-new">＋ 新建模板</button></div>
+    <p class="muted sm tpl-tip">可复用的部署脚本模板：在任务编辑器中「从模板添加」插入步骤，或把写好的步骤「存为模板」沉淀复用。</p>
+    <div class="tpl-filters">
+      <div class="chips" id="tpl-cats"></div>
+      <div class="chips" id="tpl-os"></div>
+    </div>
+    <div id="tpl-grid">加载中…</div>`;
+  try { state.templates = await api('/api/templates'); } catch (e) { $('#tpl-grid').textContent = e.message; return; }
+  drawTemplateFilters();
+  drawTemplateGrid();
+}
+
+function drawTemplateFilters() {
+  const cats = $('#tpl-cats'), oses = $('#tpl-os');
+  if (!cats || !oses) return;
+  const chip = (label, active, action, val) =>
+    `<button class="chip ${active ? 'active' : ''}" data-action="${action}" data-val="${val}">${label}</button>`;
+  cats.innerHTML = chip('全部分类', state.tplCat === 'all', 'tpl-cat', 'all') +
+    Object.entries(CAT_TEXT).map(([k, v]) => chip(v, state.tplCat === k, 'tpl-cat', k)).join('');
+  oses.innerHTML = chip('全部系统', state.tplOS === 'all', 'tpl-os', 'all') +
+    chip('🐧 Linux', state.tplOS === 'linux', 'tpl-os', 'linux') +
+    chip('🪟 Windows', state.tplOS === 'windows', 'tpl-os', 'windows');
+}
+
+function drawTemplateGrid() {
+  const el = $('#tpl-grid');
+  if (!el) return;
+  const list = state.templates.filter(t =>
+    (state.tplCat === 'all' || t.category === state.tplCat) &&
+    (state.tplOS === 'all' || t.os_type === state.tplOS));
+  if (!list.length) {
+    el.innerHTML = '<div class="card empty">没有匹配的模板。</div>';
+    return;
+  }
+  el.innerHTML = `<div class="tpl-grid">${list.map(t => `
+    <div class="card tpl-card">
+      <div class="tpl-head">
+        <span class="tpl-name">${esc(t.name)}</span>
+        <span class="badge ${t.os_type === 'windows' ? 'b-os-win' : 'b-os-linux'}">${t.os_type === 'windows' ? '🪟 Windows' : '🐧 Linux'}</span>
+      </div>
+      <div class="muted sm tpl-meta">${esc(CAT_TEXT[t.category] || t.category)} · ${t.built_in ? '内置模板' : '自定义模板'}</div>
+      <p class="tpl-desc">${esc(t.description) || '—'}</p>
+      <div class="tpl-ops">
+        <button class="btn sm" data-action="tpl-view" data-id="${t.id}">查看</button>
+        <button class="btn sm" data-action="tpl-to-task" data-id="${t.id}">生成任务</button>
+        ${t.built_in
+          ? `<button class="btn sm" data-action="tpl-copy" data-id="${t.id}">复制为自定义</button>`
+          : `<button class="btn sm" data-action="tpl-edit" data-id="${t.id}">编辑</button>
+             <button class="btn sm danger" data-action="tpl-del" data-id="${t.id}">删除</button>`}
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function templateForm(t = {}) {
+  return `<form id="tpl-form" class="form-grid">
+    <input type="hidden" name="id" value="${esc(t.id || '')}">
+    <label>模板名称<input name="name" required value="${esc(t.name || '')}" placeholder="如 Nginx 安装与启动"></label>
+    <label>目标系统<select name="os_type">
+      <option value="linux" ${t.os_type !== 'windows' ? 'selected' : ''}>Linux（bash）</option>
+      <option value="windows" ${t.os_type === 'windows' ? 'selected' : ''}>Windows（PowerShell）</option>
+    </select></label>
+    <label>分类<select name="category">
+      ${Object.entries(CAT_TEXT).map(([k, v]) => `<option value="${k}" ${(t.category || 'custom') === k ? 'selected' : ''}>${v}</option>`).join('')}
+    </select></label>
+    <label>描述<input name="description" value="${esc(t.description || '')}" placeholder="可选，说明用途与适用环境"></label>
+    <label class="span2">脚本内容<textarea name="script" rows="12" class="mono" required placeholder="bash 或 PowerShell 脚本">${esc(t.script || '')}</textarea></label>
+  </form>`;
+}
+
+async function submitTemplateForm(form) {
+  const fd = new FormData(form);
+  const body = Object.fromEntries(fd.entries());
+  const id = body.id;
+  delete body.id;
+  try {
+    if (id) await api('/api/templates/' + id, { method: 'PUT', body });
+    else await api('/api/templates', { method: 'POST', body });
+    closeModal();
+    toast(id ? '模板已更新' : '模板已保存');
+    state.templates = await api('/api/templates');
+    drawTemplateFilters();
+    drawTemplateGrid();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+function viewTemplate(t) {
+  openModal(`模板：${esc(t.name)}`, `
+    <p class="muted sm">${esc(CAT_TEXT[t.category] || t.category)} · ${t.os_type === 'windows' ? '🪟 Windows（PowerShell）' : '🐧 Linux（bash）'} · ${t.built_in ? '内置模板' : '自定义模板'}</p>
+    ${t.description ? `<p>${esc(t.description)}</p>` : ''}
+    <pre class="mono tpl-script">${esc(t.script)}</pre>`,
+    `<button class="btn" data-action="tpl-clipboard" data-id="${t.id}">复制脚本</button>
+     ${t.built_in
+       ? `<button class="btn primary" data-action="tpl-copy" data-id="${t.id}">复制为自定义</button>`
+       : `<button class="btn primary" data-action="tpl-edit" data-id="${t.id}">编辑</button>`}`);
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast('脚本已复制到剪贴板');
+}
+
+async function taskFromTemplate(id) {
+  const t = state.templates.find(x => x.id === id);
+  if (!t) return;
+  try {
+    const task = await api('/api/tasks', {
+      method: 'POST',
+      body: { name: t.name, description: t.description, os_type: t.os_type, steps: [{ name: t.name, script: t.script }] },
+    });
+    toast('已从模板创建任务');
+    location.hash = '#/tasks/' + task.id;
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function openTemplatePicker() {
+  const os = $('#task-form select[name="os_type"]').value;
+  if (!state.templates.length) {
+    try { state.templates = await api('/api/templates'); } catch (e) { return toast(e.message, 'err'); }
+  }
+  const list = state.templates.filter(t => t.os_type === os);
+  if (!list.length) return toast(`没有适用于 ${os} 的模板`, 'err');
+  openModal('从模板添加步骤', `
+    <p class="muted">选择模板，将作为新步骤追加到任务末尾（仅显示 ${os === 'windows' ? '🪟 Windows' : '🐧 Linux'} 模板）：</p>
+    <div class="tpl-picker">${list.map(t => `
+      <div class="pick-row">
+        <div class="pick-info">
+          <div>${esc(t.name)}</div>
+          <div class="muted sm">${esc(CAT_TEXT[t.category] || t.category)}${t.built_in ? ' · 内置' : ''}${t.description ? ' · ' + esc(t.description) : ''}</div>
+        </div>
+        <button class="btn sm primary" data-action="tpl-insert" data-id="${t.id}">插入</button>
+      </div>`).join('')}
+    </div>`);
 }
 
 /* ---------------- runs ---------------- */
@@ -553,14 +707,70 @@ document.addEventListener('click', async e => {
         await api('/api/logout', { method: 'POST' });
         showLogin();
         break;
+      case 'tpl-cat': state.tplCat = btn.dataset.val; drawTemplateFilters(); drawTemplateGrid(); break;
+      case 'tpl-os': state.tplOS = btn.dataset.val; drawTemplateFilters(); drawTemplateGrid(); break;
+      case 'tpl-new': openModal('新建模板', templateForm(), saveFoot('tpl-form')); break;
+      case 'tpl-view': {
+        const t = state.templates.find(x => x.id === id);
+        if (t) viewTemplate(t);
+        break;
+      }
+      case 'tpl-edit': {
+        const t = state.templates.find(x => x.id === id);
+        if (t) openModal('编辑模板', templateForm(t), saveFoot('tpl-form'));
+        break;
+      }
+      case 'tpl-copy': {
+        const t = state.templates.find(x => x.id === id);
+        if (t) openModal('复制为自定义模板', templateForm({ ...t, id: '', name: t.name + '（副本）' }), saveFoot('tpl-form'));
+        break;
+      }
+      case 'tpl-del':
+        if (confirm('确定删除该模板？')) {
+          await api('/api/templates/' + id, { method: 'DELETE' });
+          toast('模板已删除');
+          state.templates = await api('/api/templates');
+          drawTemplateFilters();
+          drawTemplateGrid();
+        }
+        break;
+      case 'tpl-clipboard': {
+        const t = state.templates.find(x => x.id === id);
+        if (t) await copyText(t.script);
+        break;
+      }
+      case 'tpl-to-task': await taskFromTemplate(id); break;
+      case 'tpl-pick': await openTemplatePicker(); break;
+      case 'tpl-insert': {
+        const t = state.templates.find(x => x.id === id);
+        if (t) {
+          const cur = collectSteps();
+          const blank = cur.length === 1 && !cur[0].name.trim() && !cur[0].script.trim();
+          redrawSteps(blank ? [{ name: t.name, script: t.script }] : [...cur, { name: t.name, script: t.script }]);
+          closeModal();
+          toast(`已添加步骤「${t.name}」`);
+        }
+        break;
+      }
+      case 'step-save-tpl': {
+        const el = btn.closest('.step');
+        const script = $('textarea', el).value;
+        if (!script.trim()) { toast('步骤脚本为空，无法存为模板', 'err'); break; }
+        const os = $('#task-form select[name="os_type"]').value;
+        openModal('存为模板', templateForm({ name: $('input[name="step-name"]', el).value, script, os_type: os }), saveFoot('tpl-form'));
+        break;
+      }
     }
   } catch (err) { toast(err.message, 'err'); }
 });
 
 document.addEventListener('submit', e => {
-  if (e.target.id === 'host-form') { e.preventDefault(); submitHostForm(e.target); }
-  else if (e.target.id === 'task-form') { e.preventDefault(); submitTaskForm(e.target); }
-  else if (e.target.id === 'login-form') { e.preventDefault(); submitLogin(e.target); }
+  // 注意：表单内 name="id" 的控件会遮蔽 form.id 属性，必须用 getAttribute 读取。
+  const fid = e.target.getAttribute('id');
+  if (fid === 'host-form') { e.preventDefault(); submitHostForm(e.target); }
+  else if (fid === 'task-form') { e.preventDefault(); submitTaskForm(e.target); }
+  else if (fid === 'tpl-form') { e.preventDefault(); submitTemplateForm(e.target); }
+  else if (fid === 'login-form') { e.preventDefault(); submitLogin(e.target); }
 });
 
 document.addEventListener('change', e => {

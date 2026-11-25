@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS logs (
 	text        TEXT NOT NULL,
 	PRIMARY KEY (run_host_id, seq)
 );
+CREATE TABLE IF NOT EXISTS templates (
+	id          TEXT PRIMARY KEY,
+	name        TEXT NOT NULL,
+	description TEXT NOT NULL DEFAULT '',
+	os_type     TEXT NOT NULL DEFAULT 'linux',
+	category    TEXT NOT NULL DEFAULT 'custom',
+	script      TEXT NOT NULL,
+	built_in    INTEGER NOT NULL DEFAULT 0,
+	created_at  INTEGER NOT NULL,
+	updated_at  INTEGER NOT NULL
+);
 `)
 	return err
 }
@@ -444,6 +455,94 @@ WHERE rh.run_id=? ORDER BY rh.rowid, l.seq`, runID)
 		lines = append(lines, l)
 	}
 	return lines, rows.Err()
+}
+
+// ---------------------------------------------------------------- templates
+
+const templateCols = `id,name,description,os_type,category,script,built_in,created_at,updated_at`
+
+func scanTemplate(row interface{ Scan(...any) error }) (models.Template, error) {
+	var t models.Template
+	var builtIn int
+	var created, updated int64
+	err := row.Scan(&t.ID, &t.Name, &t.Description, &t.OSType, &t.Category,
+		&t.Script, &builtIn, &created, &updated)
+	t.BuiltIn = builtIn != 0
+	t.CreatedAt, t.UpdatedAt = fromTs(created), fromTs(updated)
+	return t, err
+}
+
+// SeedTemplates inserts built-in templates idempotently (stable IDs).
+func (s *Store) SeedTemplates(list []models.Template) error {
+	for i := range list {
+		t := &list[i]
+		built := 0
+		if t.BuiltIn {
+			built = 1
+		}
+		if _, err := s.db.Exec(`INSERT OR IGNORE INTO templates(`+templateCols+`) VALUES(?,?,?,?,?,?,?,?,?)`,
+			t.ID, t.Name, t.Description, t.OSType, t.Category, t.Script, built, ts(t.CreatedAt), ts(t.UpdatedAt)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreateTemplate inserts a template.
+func (s *Store) CreateTemplate(t *models.Template) error {
+	built := 0
+	if t.BuiltIn {
+		built = 1
+	}
+	_, err := s.db.Exec(`INSERT INTO templates(`+templateCols+`) VALUES(?,?,?,?,?,?,?,?,?)`,
+		t.ID, t.Name, t.Description, t.OSType, t.Category, t.Script, built, ts(t.CreatedAt), ts(t.UpdatedAt))
+	return err
+}
+
+// ListTemplates returns all templates, built-ins first then by category/name.
+func (s *Store) ListTemplates() ([]models.Template, error) {
+	rows, err := s.db.Query(`SELECT ` + templateCols + ` FROM templates ORDER BY built_in DESC, category, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	templates := []models.Template{}
+	for rows.Next() {
+		t, err := scanTemplate(rows)
+		if err != nil {
+			return nil, err
+		}
+		templates = append(templates, t)
+	}
+	return templates, rows.Err()
+}
+
+// GetTemplate returns one template or ErrNotFound.
+func (s *Store) GetTemplate(id string) (models.Template, error) {
+	t, err := scanTemplate(s.db.QueryRow(`SELECT `+templateCols+` FROM templates WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return models.Template{}, ErrNotFound
+	}
+	return t, err
+}
+
+// UpdateTemplate updates all mutable fields of a template.
+func (s *Store) UpdateTemplate(t *models.Template) error {
+	res, err := s.db.Exec(`UPDATE templates SET name=?,description=?,os_type=?,category=?,script=?,updated_at=? WHERE id=?`,
+		t.Name, t.Description, t.OSType, t.Category, t.Script, ts(t.UpdatedAt), t.ID)
+	if err != nil {
+		return err
+	}
+	return affected(res)
+}
+
+// DeleteTemplate removes a template.
+func (s *Store) DeleteTemplate(id string) error {
+	res, err := s.db.Exec(`DELETE FROM templates WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	return affected(res)
 }
 
 func affected(res sql.Result) error {
